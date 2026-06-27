@@ -2,6 +2,7 @@ import { Camera } from './domain/Camera.js';
 import { Network } from './domain/Network.js';
 import { NetworkClient } from './infrastructure/NetworkClient.js';
 import { SendMessage } from './application/SendMessage.js';
+import { ToggleNode } from './application/ToggleNode.js';
 import { ReceiveMessage } from './application/ReceiveMessage.js';
 import { SentMessage } from './application/SentMessage.js';
 import { CanvasAdapter } from './infrastructure/CanvasAdapter.js';
@@ -85,7 +86,8 @@ class App {
   }
 
   initTeacherDashboard(data, teacherName) {
-    this.teacherDashboard = new TeacherDashboard(this.client.socket);
+    const teacherCanvas = new CanvasAdapter('teacher-canvas', 'teacher-canvas-outer');
+    this.teacherDashboard = new TeacherDashboard(this.client.socket, teacherCanvas);
     this.teacherDashboard.roomCode = data.code;
     this.teacherDashboard.groupName = data.groupName;
 
@@ -140,11 +142,12 @@ class App {
   }
 
   initStudentApp(data, name) {
-    this.camera = new Camera();
+    this.camera = new Camera(window.devicePixelRatio || 1);
     this.network = new Network(this.camera);
     this.receiveMessage = new ReceiveMessage();
     this.sentMessage = new SentMessage();
     this.sendMessage = new SendMessage(this.client);
+    this.toggleNode = new ToggleNode(this.client);
 
     document.getElementById('my-name').textContent = name;
     document.getElementById('my-label').textContent = data.label;
@@ -228,7 +231,7 @@ class App {
   }
 
   initChat() {
-    this.chatPanel = new ChatPanel(this.receiveMessage, this.sentMessage, this.sendMessage, this.client);
+    this.chatPanel = new ChatPanel(this.receiveMessage, this.sentMessage, this.sendMessage, this.toggleNode);
     this.chatPanel.updateContacts(this.network.nodes, this.client.getMyNodeId());
     this.chatPanel.storeContext(this.network.nodes, this.client.getMyNodeId());
   }

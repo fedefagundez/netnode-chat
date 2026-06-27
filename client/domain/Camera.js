@@ -1,6 +1,6 @@
 class Camera {
-  constructor() {
-    this.dpr = window.devicePixelRatio || 1;
+  constructor(dpr = 1) {
+    this.dpr = dpr;
     this.width = 0;
     this.height = 0;
     this.scale = 1;
@@ -25,7 +25,7 @@ class Camera {
   setSize(width, height, dpr) {
     this.width = width;
     this.height = height;
-    this.dpr = dpr;
+    if (dpr !== undefined) this.dpr = dpr;
   }
 
   reset() {

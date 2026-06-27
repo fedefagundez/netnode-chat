@@ -1,9 +1,9 @@
 class ChatPanel {
-  constructor(receiveMessage, sentMessage, sendMessage, client) {
+  constructor(receiveMessage, sentMessage, sendMessage, toggleNode) {
     this.receiveMessage = receiveMessage;
     this.sentMessage = sentMessage;
     this.sendMessage = sendMessage;
-    this.client = client;
+    this.toggleNode = toggleNode;
     this.selectedContact = null;
     this.myNodeOn = true;
     this.pendingByContact = {};
@@ -44,7 +44,7 @@ class ChatPanel {
 
   handleToggle() {
     this.myNodeOn = !this.myNodeOn;
-    this.client.toggleNode();
+    this.toggleNode.execute();
     this.updateToggleUI();
     this.updateSendButton();
     if (typeof Sounds !== 'undefined') Sounds.toggle();
@@ -210,7 +210,7 @@ class ChatPanel {
     const result = this.sendMessage.execute(this.selectedContact.id, text);
     if (result.success) {
       this.sentMessage.addMessage({
-        from: this.client.getMyNodeId(),
+        from: this.lastMyNodeId,
         toNodeId: this.selectedContact.id,
         text: text,
         timestamp: Date.now(),

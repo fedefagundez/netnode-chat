@@ -1,6 +1,7 @@
 import { Node } from './Node.js';
 import { Edge } from './Edge.js';
 import { calculatePositions } from './layout.js';
+import { bfs } from './pathfinding.js';
 
 class Network {
   constructor(camera) {
@@ -44,31 +45,7 @@ class Network {
   }
 
   bfs(srcId, dstId) {
-    if (srcId === dstId) return [srcId];
-    const visited = new Set([srcId]);
-    const queue = [[srcId]];
-
-    while (queue.length) {
-      const path = queue.shift();
-      const current = path[path.length - 1];
-
-      for (const edge of this.edges) {
-        let neighbor = null;
-        if (edge.from === current) neighbor = edge.to;
-        else if (edge.to === current) neighbor = edge.from;
-
-        if (neighbor === null || visited.has(neighbor)) continue;
-        const node = this.getNode(neighbor);
-        if (!node || !node.on) continue;
-
-        const newPath = [...path, neighbor];
-        if (neighbor === dstId) return newPath;
-
-        visited.add(neighbor);
-        queue.push(newPath);
-      }
-    }
-    return null;
+    return bfs(this.nodes, this.edges, srcId, dstId);
   }
 
   nodeCount() {

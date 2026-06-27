@@ -1,21 +1,23 @@
 import { calculatePositions } from '../domain/layout.js';
+import { drawNode, drawPacket, isDark } from './NodeRenderer.js';
+import { PacketAnimator } from './PacketAnimator.js';
 
 class TeacherDashboard {
-  constructor(socket) {
+  constructor(socket, canvasAdapter) {
     this.socket = socket;
+    this.canvas = canvasAdapter;
     this.roomCode = null;
     this.groupName = null;
-    this.state = { nodes: [], edges: [] };
+    this.state = { nodes: [], edges: [], topology: 'chain' };
     this.chatPairs = [];
     this.selectedChat = null;
     this.chatLog = [];
     this.onChatLogUpdate = null;
 
-    this.packetPos = null;
-    this.pathHL = [];
-    this.packetT = 0;
-    this.packetEdgeIdx = 0;
-    this.animId = null;
+    this.animator = new PacketAnimator({
+      getPosition: (id) => this._getPosition(id),
+      onDraw: () => this.drawTopology(),
+    });
 
     this.shareLinkEl = document.getElementById('teacher-share-link');
     this.roomCodeEl = document.getElementById('teacher-room-code');
@@ -39,6 +41,14 @@ class TeacherDashboard {
     this.btnMonitorBack.addEventListener('click', () => this.showListView());
     this.btnApplyTopology.addEventListener('click', () => this.applyTopology());
     this.setupSocketListeners();
+  }
+
+  _getPosition(nodeId) {
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const positions = calculatePositions(this.state.nodes, w, h, this.state.topology);
+    const pos = positions.find(p => p.node.id === nodeId);
+    return pos || null;
   }
 
   copyToClipboard(element, isCode = false) {
@@ -104,7 +114,7 @@ class TeacherDashboard {
 
     this.socket.on('packet', (data) => {
       if (data.path && data.path.length > 1) {
-        this.animatePacket(data.path);
+        this.animator.animate(data.path);
       }
     });
   }
@@ -224,89 +234,27 @@ class TeacherDashboard {
     });
   }
 
-  animatePacket(path) {
-    this.stopAnimation();
-    this.pathHL = path;
-    this.packetEdgeIdx = 0;
-    this.packetT = 0;
-    this.animateStep();
-  }
-
-  animateStep() {
-    this.packetT += 0.04;
-    if (this.packetT >= 1) {
-      this.packetT = 0;
-      this.packetEdgeIdx++;
-    }
-
-    if (this.packetEdgeIdx >= this.pathHL.length - 1) {
-      this.finishAnimation();
-      return;
-    }
-
-    const canvas = document.getElementById('teacher-canvas');
-    if (!canvas) return;
-    const rect = canvas.parentElement.getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
-
-    const positions = calculatePositions(this.state.nodes, w, h, this.state.topology);
-
-    const a = positions.find(p => p.node.id === this.pathHL[this.packetEdgeIdx]);
-    const b = positions.find(p => p.node.id === this.pathHL[this.packetEdgeIdx + 1]);
-    if (!a || !b) return;
-
-    this.packetPos = {
-      x: a.x + (b.x - a.x) * this.packetT,
-      y: a.y + (b.y - a.y) * this.packetT,
-    };
-
-    this.drawTopology();
-    this.animId = requestAnimationFrame(() => this.animateStep());
-  }
-
-  finishAnimation() {
-    this.packetPos = null;
-    this.pathHL = [];
-    this.drawTopology();
-    this.animId = null;
-  }
-
-  stopAnimation() {
-    if (this.animId) {
-      cancelAnimationFrame(this.animId);
-      this.animId = null;
-    }
-    this.packetPos = null;
-    this.pathHL = [];
-  }
-
   drawTopology() {
-    const canvas = document.getElementById('teacher-canvas');
-    if (!canvas) return;
+    if (!this.canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.parentElement.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const ctx = this.canvas.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const dpr = this.canvas.dpr;
 
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.canvas.setSize(w * dpr, h * dpr);
+    this.canvas.setStyleSize(w, h);
+    this.canvas.setTransform(dpr);
 
-    const w = rect.width;
-    const h = rect.height;
-    const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
-
-    ctx.fillStyle = isDark ? '#1e1e1c' : '#f0efeb';
+    const dark = isDark();
+    ctx.fillStyle = dark ? '#1e1e1c' : '#f0efeb';
     ctx.fillRect(0, 0, w, h);
 
     const nodes = this.state.nodes;
     const edges = this.state.edges;
 
     if (nodes.length === 0) {
-      ctx.fillStyle = isDark ? '#666' : '#999';
+      ctx.fillStyle = dark ? '#666' : '#999';
       ctx.font = '14px -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Esperando nodos...', w / 2, h / 2);
@@ -314,11 +262,12 @@ class TeacherDashboard {
     }
 
     const positions = calculatePositions(nodes, w, h, this.state.topology);
+    const posMap = new Map(positions.map(p => [p.node.id, p]));
 
     ctx.lineCap = 'round';
     for (const edge of edges) {
-      const a = positions.find(p => p.node.id === edge.from);
-      const b = positions.find(p => p.node.id === edge.to);
+      const a = posMap.get(edge.from);
+      const b = posMap.get(edge.to);
       if (!a || !b) continue;
 
       const na = nodes.find(n => n.id === edge.from);
@@ -329,10 +278,10 @@ class TeacherDashboard {
       ctx.lineTo(b.x, b.y);
 
       if (!na.on || !nb.on) {
-        ctx.strokeStyle = isDark ? '#262624' : '#e2e1db';
+        ctx.strokeStyle = dark ? '#262624' : '#e2e1db';
         ctx.setLineDash([4, 4]);
       } else {
-        ctx.strokeStyle = isDark ? '#3a3a36' : '#c8c7c0';
+        ctx.strokeStyle = dark ? '#3a3a36' : '#c8c7c0';
         ctx.setLineDash([]);
       }
       ctx.lineWidth = 1.5;
@@ -341,68 +290,22 @@ class TeacherDashboard {
     }
 
     const nr = Math.max(18, Math.round(w * 0.035));
+    const colors = {
+      nodeActive: dark ? '#4a76d4' : '#5b87e0',
+      nodeActiveBr: dark ? '#2a4fa4' : '#3a5fa8',
+      nodeOff: dark ? '#363634' : '#bebdb8',
+      nodeOffBr: dark ? '#282826' : '#a0a09a',
+      nodeMe: dark ? '#4a76d4' : '#5b87e0',
+      nodeMeBr: dark ? '#2a4fa4' : '#3a5fa8',
+      lblOn: '#fff',
+      lblOff: dark ? '#555' : '#b8b8b0',
+    };
     for (const pos of positions) {
-      const n = pos.node;
-      let fill, border;
-      if (!n.on) {
-        fill = isDark ? '#363634' : '#bebdb8';
-        border = isDark ? '#282826' : '#a0a09a';
-      } else {
-        fill = isDark ? '#4a76d4' : '#5b87e0';
-        border = isDark ? '#2a4fa4' : '#3a5fa8';
-      }
-
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, nr, 0, Math.PI * 2);
-      ctx.fillStyle = fill;
-      ctx.fill();
-      ctx.strokeStyle = border;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      if (!n.on) {
-        ctx.save();
-        ctx.strokeStyle = isDark ? '#666' : '#ccc';
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        const s = Math.round(nr * .38);
-        ctx.beginPath();
-        ctx.moveTo(pos.x - s, pos.y - s);
-        ctx.lineTo(pos.x + s, pos.y + s);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(pos.x + s, pos.y - s);
-        ctx.lineTo(pos.x - s, pos.y + s);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${Math.max(11, nr * 0.6)}px -apple-system, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(n.label, pos.x, pos.y);
-
-      ctx.fillStyle = isDark ? '#aaa' : '#666';
-      ctx.font = `${Math.max(9, nr * 0.35)}px -apple-system, sans-serif`;
-      ctx.fillText(n.name, pos.x, pos.y + nr + 12);
+      drawNode(ctx, pos.node, pos.x, pos.y, nr, colors);
     }
 
-    if (this.packetPos) {
-      const pr = Math.max(7, Math.round(w * 0.012));
-      ctx.beginPath();
-      ctx.arc(this.packetPos.x, this.packetPos.y, pr, 0, Math.PI * 2);
-      ctx.fillStyle = '#f5a623';
-      ctx.fill();
-      ctx.strokeStyle = '#b87a10';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(this.packetPos.x, this.packetPos.y, pr + 5, 0, Math.PI * 2);
-      ctx.strokeStyle = '#f5a62355';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+    if (this.animator.packetPos) {
+      drawPacket(ctx, this.animator.packetPos.x, this.animator.packetPos.y, Math.max(7, Math.round(w * 0.012)));
     }
   }
 }
