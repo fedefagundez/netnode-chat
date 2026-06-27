@@ -91,6 +91,12 @@
       </div>
       <div class="main">
         <div class="chat-panel">
+          <div class="chat-topbar">
+            <div class="chat-topbar-left">
+              <span id="my-status" class="my-status">Nodo activo</span>
+            </div>
+            <button id="btn-toggle-node" class="toggle-btn on">🟢 On</button>
+          </div>
           <div class="contacts-view" id="contacts-view">
             <div class="contacts-header">Mis contactos</div>
             <div id="contacts-list" class="contacts-list"></div>
@@ -99,10 +105,6 @@
             <div class="chat-header">
               <button id="btn-back" class="btn-back">←</button>
               <span id="chat-with">Chat</span>
-              <div class="chat-header-right">
-                <span id="my-status" class="my-status">Nodo activo</span>
-                <button id="btn-toggle-node" class="toggle-btn on">🟢 On</button>
-              </div>
             </div>
             <div id="chat-messages" class="chat-messages"></div>
             <div class="chat-input-area">
