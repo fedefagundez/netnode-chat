@@ -25,20 +25,25 @@
 
     <div class="main">
       <div class="chat-panel">
-        <div class="contacts-header">Contactos</div>
-        <div id="contacts-list" class="contacts-list"></div>
-
-        <div class="chat-header">
-          <span id="chat-with">Seleccioná un contacto</span>
-          <div class="chat-header-right">
-            <span id="my-status" class="my-status">Nodo activo</span>
-            <button id="btn-toggle-node" class="toggle-btn on">🟢 On</button>
-          </div>
+        <div class="contacts-view" id="contacts-view">
+          <div class="contacts-header">Mis contactos</div>
+          <div id="contacts-list" class="contacts-list"></div>
         </div>
-        <div id="chat-messages" class="chat-messages"></div>
-        <div class="chat-input-area">
-          <input type="text" id="msg-input" placeholder="Escribí un mensaje..." disabled>
-          <button id="btn-send" disabled>Enviar</button>
+
+        <div class="chat-view hidden" id="chat-view">
+          <div class="chat-header">
+            <button id="btn-back" class="btn-back">←</button>
+            <span id="chat-with">Chat</span>
+            <div class="chat-header-right">
+              <span id="my-status" class="my-status">Nodo activo</span>
+              <button id="btn-toggle-node" class="toggle-btn on">🟢 On</button>
+            </div>
+          </div>
+          <div id="chat-messages" class="chat-messages"></div>
+          <div class="chat-input-area">
+            <input type="text" id="msg-input" placeholder="Escribí un mensaje..." disabled>
+            <button id="btn-send" disabled>Enviar</button>
+          </div>
         </div>
       </div>
 

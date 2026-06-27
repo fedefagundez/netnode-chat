@@ -8,12 +8,15 @@ class ChatPanel {
     this.myNodeOn = true;
     this.pendingByContact = {};
 
+    this.contactsView = document.getElementById('contacts-view');
+    this.chatView = document.getElementById('chat-view');
     this.contactsList = document.getElementById('contacts-list');
     this.chatWith = document.getElementById('chat-with');
     this.chatMessages = document.getElementById('chat-messages');
     this.msgInput = document.getElementById('msg-input');
     this.btnSend = document.getElementById('btn-send');
     this.btnToggle = document.getElementById('btn-toggle-node');
+    this.btnBack = document.getElementById('btn-back');
     this.statusText = document.getElementById('my-status');
 
     this.btnSend.addEventListener('click', () => this.handleSend());
@@ -22,8 +25,21 @@ class ChatPanel {
     });
 
     this.btnToggle.addEventListener('click', () => this.handleToggle());
+    this.btnBack.addEventListener('click', () => this.showContactsView());
     this.updateToggleUI();
     this.updateSendButton();
+  }
+
+  showContactsView() {
+    this.contactsView.classList.remove('hidden');
+    this.chatView.classList.add('hidden');
+    this.selectedContact = null;
+    this.updateContacts(this.lastNodes || [], this.lastMyNodeId);
+  }
+
+  showChatView() {
+    this.contactsView.classList.add('hidden');
+    this.chatView.classList.remove('hidden');
   }
 
   handleToggle() {
@@ -121,6 +137,7 @@ class ChatPanel {
     this.chatMessages.innerHTML = '';
     this.clearPending(node.id);
     this.updateSendButton();
+    this.showChatView();
 
     const received = this.receiveMessage.getMessages().filter(
       m => m.from === node.id
