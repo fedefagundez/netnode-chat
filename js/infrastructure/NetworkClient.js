@@ -4,12 +4,17 @@ class NetworkClient {
     this.myNodeId = null;
     this.myLabel = null;
     this.state = { nodes: [], edges: [] };
+    this.roomCode = null;
 
     this.onRegistered = null;
     this.onStateUpdate = null;
     this.onPacket = null;
     this.onReceiveMessage = null;
     this.onMessageError = null;
+    this.onRoomCreated = null;
+    this.onRoomJoined = null;
+    this.onError = null;
+    this.onRoomClosed = null;
   }
 
   connect() {
@@ -19,11 +24,23 @@ class NetworkClient {
       console.log('[Client] Conectado al servidor');
     });
 
+    this.socket.on('room-created', (data) => {
+      if (this.onRoomCreated) this.onRoomCreated(data);
+    });
+
     this.socket.on('registered', (data) => {
       this.myNodeId = data.nodeId;
       this.myLabel = data.label;
       this.state = data.state;
       if (this.onRegistered) this.onRegistered(data);
+    });
+
+    this.socket.on('room-joined', (data) => {
+      this.myNodeId = data.nodeId;
+      this.myLabel = data.label;
+      this.state = data.state;
+      this.roomCode = data.state.code;
+      if (this.onRoomJoined) this.onRoomJoined(data);
     });
 
     this.socket.on('state-update', (newState) => {
@@ -43,13 +60,25 @@ class NetworkClient {
       if (this.onMessageError) this.onMessageError(data);
     });
 
+    this.socket.on('error', (data) => {
+      if (this.onError) this.onError(data);
+    });
+
+    this.socket.on('room-closed', (data) => {
+      if (this.onRoomClosed) this.onRoomClosed(data);
+    });
+
     this.socket.on('disconnect', () => {
       console.log('[Client] Desconectado del servidor');
     });
   }
 
-  register(name) {
-    this.socket.emit('register', name);
+  createRoom(groupName, teacherName) {
+    this.socket.emit('create-room', { groupName, teacherName });
+  }
+
+  joinRoom(code, name) {
+    this.socket.emit('join-room', { code, name });
   }
 
   sendMessage(toNodeId, text) {

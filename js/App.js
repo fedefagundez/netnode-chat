@@ -7,66 +7,154 @@ import { SentMessage } from './application/SentMessage.js';
 import { CanvasAdapter } from './infrastructure/CanvasAdapter.js';
 import { CanvasRenderer } from './presentation/CanvasRenderer.js';
 import { ChatPanel } from './presentation/ChatPanel.js';
+import { TeacherDashboard } from './presentation/TeacherDashboard.js';
 
 class App {
   constructor() {
+    this.client = new NetworkClient();
+
+    this.screens = {
+      login: document.getElementById('role-screen'),
+      teacherDashboard: document.getElementById('teacher-dashboard-screen'),
+      studentJoin: document.getElementById('student-join-screen'),
+      studentApp: document.getElementById('student-app-screen'),
+    };
+
+    this.camera = null;
+    this.network = null;
+    this.receiveMessage = null;
+    this.sentMessage = null;
+    this.sendMessage = null;
+    this.canvasAdapter = null;
+    this.renderer = null;
+    this.chatPanel = null;
+    this.teacherDashboard = null;
+    this.pendingMessage = null;
+
+    this.client.connect();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('join')) {
+      this.showScreen('studentJoin');
+      this.setupStudentJoin();
+    } else {
+      this.showScreen('login');
+      this.setupLogin();
+    }
+  }
+
+  showScreen(screenName) {
+    Object.values(this.screens).forEach(s => s.classList.add('hidden'));
+    if (this.screens[screenName]) {
+      this.screens[screenName].classList.remove('hidden');
+    }
+  }
+
+  setupLogin() {
+    const teacherNameInput = document.getElementById('teacher-name-input');
+    const groupNameInput = document.getElementById('group-name-input');
+    const btnCreate = document.getElementById('btn-create-room');
+
+    teacherNameInput.focus();
+
+    btnCreate.addEventListener('click', () => this.createRoom());
+    groupNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.createRoom();
+    });
+    teacherNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') groupNameInput.focus();
+    });
+  }
+
+  createRoom() {
+    const teacherName = document.getElementById('teacher-name-input').value.trim();
+    const groupName = document.getElementById('group-name-input').value.trim();
+    if (!teacherName || !groupName) return;
+
+    this.client.createRoom(groupName, teacherName);
+
+    this.client.onRoomCreated = (data) => {
+      this.showScreen('teacherDashboard');
+      this.initTeacherDashboard(data, teacherName);
+    };
+
+    this.client.onError = (data) => {
+      alert(data.message);
+    };
+  }
+
+  initTeacherDashboard(data, teacherName) {
+    this.teacherDashboard = new TeacherDashboard(this.client.socket);
+    this.teacherDashboard.roomCode = data.code;
+    this.teacherDashboard.groupName = data.groupName;
+
+    const baseUrl = window.location.origin + window.location.pathname;
+    document.getElementById('teacher-share-link').value = baseUrl + '?join=1';
+    document.getElementById('teacher-room-code').textContent = data.code;
+    document.getElementById('teacher-group-name').textContent = data.groupName;
+    document.getElementById('teacher-node-count').textContent = '0 nodos conectados';
+
+    this.teacherDashboard.updateChatPairs();
+
+    new ResizeObserver(() => this.teacherDashboard.drawTopology())
+      .observe(document.getElementById('teacher-canvas-outer'));
+
+    requestAnimationFrame(() => {
+      this.teacherDashboard.drawTopology();
+    });
+  }
+
+  setupStudentJoin() {
+    const roomCodeInput = document.getElementById('room-code-input');
+    const studentNameInput = document.getElementById('student-name-input');
+    const btnJoin = document.getElementById('btn-join-room');
+
+    roomCodeInput.focus();
+
+    btnJoin.addEventListener('click', () => this.joinRoom());
+    roomCodeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') studentNameInput.focus();
+    });
+    studentNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.joinRoom();
+    });
+  }
+
+  joinRoom() {
+    const code = document.getElementById('room-code-input').value.trim();
+    const name = document.getElementById('student-name-input').value.trim();
+    if (!code || !name) return;
+
+    this.client.onError = (data) => {
+      alert(data.message);
+    };
+
+    this.client.onRoomJoined = (data) => {
+      this.showScreen('studentApp');
+      this.initStudentApp(data, name);
+    };
+
+    this.client.joinRoom(code, name);
+  }
+
+  initStudentApp(data, name) {
     this.camera = new Camera();
     this.network = new Network(this.camera);
-    this.client = new NetworkClient();
     this.receiveMessage = new ReceiveMessage();
     this.sentMessage = new SentMessage();
     this.sendMessage = new SendMessage(this.client);
 
-    this.canvasAdapter = null;
-    this.renderer = null;
-    this.chatPanel = null;
-    this.pendingMessage = null;
+    document.getElementById('my-name').textContent = name;
+    document.getElementById('my-label').textContent = data.label;
 
-    this.loginScreen = document.getElementById('login-screen');
-    this.appEl = document.getElementById('app');
-    this.nameInput = document.getElementById('name-input');
-    this.btnJoin = document.getElementById('btn-join');
-    this.myNameEl = document.getElementById('my-name');
-    this.myLabelEl = document.getElementById('my-label');
-    this.badgeEl = document.getElementById('badge');
-    this.statusEl = document.getElementById('status');
+    this.network.myNodeId = data.nodeId;
+    this.network.updateState(data.state);
+    this.updateBadge();
+    this.initCanvas();
+    this.initChat();
 
-    this.setupLogin();
-  }
-
-  setupLogin() {
-    this.btnJoin.addEventListener('click', () => {
-      if (typeof Sounds !== 'undefined') Sounds.init();
-      this.join();
-    });
-    this.nameInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        if (typeof Sounds !== 'undefined') Sounds.init();
-        this.join();
-      }
-    });
-  }
-
-  join() {
-    const name = this.nameInput.value.trim();
-    if (!name) return;
-
-    this.loginScreen.classList.add('hidden');
-    this.appEl.classList.remove('hidden');
-
-    this.myNameEl.textContent = name;
-
-    this.client.connect();
-
-    this.client.onRegistered = (data) => {
-      this.myLabelEl.textContent = data.label;
-      this.network.myNodeId = data.nodeId;
-      this.network.updateState(data.state);
-      this.updateBadge();
-      this.initCanvas();
-      this.initChat();
-      this.statusEl.textContent = `Conectado como Nodo ${data.label} — ${data.state.nodes.length} nodos en la red`;
-    };
+    document.getElementById('status').textContent =
+      `Conectado como Nodo ${data.label} — ${data.state.nodes.length} nodos en la red`;
 
     this.client.onStateUpdate = (newState) => {
       this.network.updateState(newState);
@@ -79,7 +167,7 @@ class App {
         this.chatPanel.updateContacts(newState.nodes, this.client.getMyNodeId());
         this.chatPanel.storeContext(newState.nodes, this.client.getMyNodeId());
       }
-      this.statusEl.textContent = `${newState.nodes.length} nodos en la red`;
+      document.getElementById('status').textContent = `${newState.nodes.length} nodos en la red`;
     };
 
     this.client.onPacket = (data) => {
@@ -107,7 +195,10 @@ class App {
       }
     };
 
-    this.client.register(name);
+    this.client.onRoomClosed = (data) => {
+      alert(data.reason);
+      window.location.reload();
+    };
   }
 
   initCanvas() {
@@ -142,7 +233,7 @@ class App {
 
   updateBadge() {
     const count = this.network.nodeCount();
-    this.badgeEl.textContent = count + ' nodo' + (count !== 1 ? 's' : '');
+    document.getElementById('badge').textContent = count + ' nodo' + (count !== 1 ? 's' : '');
   }
 }
 

@@ -1,5 +1,6 @@
 import { Node } from './Node.js';
 import { Edge } from './Edge.js';
+import { calculatePositions } from './layout.js';
 
 class Network {
   constructor(camera) {
@@ -20,28 +21,10 @@ class Network {
   }
 
   assignPositions() {
-    const count = this.nodes.length;
-    if (count === 0) return;
-
-    const cw = this.camera.width;
-    const ch = this.camera.height;
-
-    if (count === 1) {
-      this.nodes[0].x = cw / 2;
-      this.nodes[0].y = ch / 2;
-      return;
-    }
-
-    const cols = Math.ceil(Math.sqrt(count));
-    const rows = Math.ceil(count / cols);
-    const cellW = cw / (cols + 1);
-    const cellH = ch / (rows + 1);
-
-    this.nodes.forEach((node, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      node.x = cellW * (col + 1);
-      node.y = cellH * (row + 1);
+    const positions = calculatePositions(this.nodes, this.camera.width, this.camera.height);
+    positions.forEach(pos => {
+      pos.node.x = pos.x;
+      pos.node.y = pos.y;
     });
   }
 
