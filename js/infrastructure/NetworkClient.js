@@ -9,6 +9,7 @@ class NetworkClient {
     this.onStateUpdate = null;
     this.onPacket = null;
     this.onReceiveMessage = null;
+    this.onMessageError = null;
   }
 
   connect() {
@@ -36,6 +37,10 @@ class NetworkClient {
 
     this.socket.on('receive-message', (data) => {
       if (this.onReceiveMessage) this.onReceiveMessage(data);
+    });
+
+    this.socket.on('message-error', (data) => {
+      if (this.onMessageError) this.onMessageError(data);
     });
 
     this.socket.on('disconnect', () => {

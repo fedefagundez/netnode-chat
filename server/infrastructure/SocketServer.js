@@ -53,9 +53,21 @@ class SocketServer {
         if (!sender) return;
 
         const receiver = this.network.getNode(data.toNodeId);
-        if (!receiver) return;
+        if (!receiver) {
+          socket.emit('message-error', { reason: 'receptor-no-existe' });
+          return;
+        }
+
+        if (!receiver.on) {
+          socket.emit('message-error', { reason: 'receptor-apagado', receiverName: receiver.name });
+          return;
+        }
 
         const path = this.network.bfs(sender.id, receiver.id);
+        if (!path) {
+          socket.emit('message-error', { reason: 'sin-ruta', receiverName: receiver.name });
+          return;
+        }
 
         this.io.emit('packet', {
           from: sender.id,

@@ -3,6 +3,7 @@ import { Network } from './domain/Network.js';
 import { NetworkClient } from './infrastructure/NetworkClient.js';
 import { SendMessage } from './application/SendMessage.js';
 import { ReceiveMessage } from './application/ReceiveMessage.js';
+import { SentMessage } from './application/SentMessage.js';
 import { CanvasAdapter } from './infrastructure/CanvasAdapter.js';
 import { CanvasRenderer } from './presentation/CanvasRenderer.js';
 import { ChatPanel } from './presentation/ChatPanel.js';
@@ -13,6 +14,7 @@ class App {
     this.network = new Network(this.camera);
     this.client = new NetworkClient();
     this.receiveMessage = new ReceiveMessage();
+    this.sentMessage = new SentMessage();
     this.sendMessage = new SendMessage(this.client);
 
     this.canvasAdapter = null;
@@ -33,9 +35,15 @@ class App {
   }
 
   setupLogin() {
-    this.btnJoin.addEventListener('click', () => this.join());
+    this.btnJoin.addEventListener('click', () => {
+      if (typeof Sounds !== 'undefined') Sounds.init();
+      this.join();
+    });
     this.nameInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this.join();
+      if (e.key === 'Enter') {
+        if (typeof Sounds !== 'undefined') Sounds.init();
+        this.join();
+      }
     });
   }
 
@@ -93,6 +101,12 @@ class App {
       this.pendingMessage = data;
     };
 
+    this.client.onMessageError = (data) => {
+      if (this.chatPanel) {
+        this.chatPanel.onMessageError(data);
+      }
+    };
+
     this.client.register(name);
   }
 
@@ -121,7 +135,7 @@ class App {
   }
 
   initChat() {
-    this.chatPanel = new ChatPanel(this.receiveMessage, this.sendMessage, this.client);
+    this.chatPanel = new ChatPanel(this.receiveMessage, this.sentMessage, this.sendMessage, this.client);
     this.chatPanel.updateContacts(this.network.nodes, this.client.getMyNodeId());
     this.chatPanel.storeContext(this.network.nodes, this.client.getMyNodeId());
   }

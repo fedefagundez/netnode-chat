@@ -1,10 +1,12 @@
 class ChatPanel {
-  constructor(receiveMessage, sendMessage, client) {
+  constructor(receiveMessage, sentMessage, sendMessage, client) {
     this.receiveMessage = receiveMessage;
+    this.sentMessage = sentMessage;
     this.sendMessage = sendMessage;
     this.client = client;
     this.selectedContact = null;
     this.myNodeOn = true;
+    this.pendingByContact = {};
 
     this.contactsList = document.getElementById('contacts-list');
     this.chatWith = document.getElementById('chat-with');
@@ -21,12 +23,15 @@ class ChatPanel {
 
     this.btnToggle.addEventListener('click', () => this.handleToggle());
     this.updateToggleUI();
+    this.updateSendButton();
   }
 
   handleToggle() {
     this.myNodeOn = !this.myNodeOn;
     this.client.toggleNode();
     this.updateToggleUI();
+    this.updateSendButton();
+    if (typeof Sounds !== 'undefined') Sounds.toggle();
   }
 
   updateToggleUI() {
@@ -41,9 +46,48 @@ class ChatPanel {
     }
   }
 
+  updateSendButton() {
+    if (!this.myNodeOn) {
+      this.msgInput.disabled = true;
+      this.btnSend.disabled = true;
+      this.msgInput.placeholder = 'Nodo apagado — no podés enviar mensajes';
+    } else if (this.selectedContact) {
+      this.msgInput.disabled = false;
+      this.btnSend.disabled = false;
+      this.msgInput.placeholder = 'Escribí un mensaje...';
+    }
+  }
+
   updateMyNodeState(isOn) {
     this.myNodeOn = isOn;
     this.updateToggleUI();
+    this.updateSendButton();
+  }
+
+  markPending(fromNodeId) {
+    if (!this.pendingByContact[fromNodeId]) {
+      this.pendingByContact[fromNodeId] = 0;
+    }
+    this.pendingByContact[fromNodeId]++;
+    this.updateContacts(this.lastNodes || [], this.lastMyNodeId);
+
+    const items = this.contactsList.querySelectorAll('.contact-item');
+    items.forEach(item => {
+      const label = item.querySelector('.contact-label');
+      if (label && label.textContent.includes('Nodo')) {
+        const nodeLabel = label.textContent.replace('Nodo ', '').trim();
+        const node = (this.lastNodes || []).find(n => n.label === nodeLabel && n.id === fromNodeId);
+        if (node) {
+          item.classList.add('highlight');
+          setTimeout(() => item.classList.remove('highlight'), 1500);
+        }
+      }
+    });
+  }
+
+  clearPending(nodeId) {
+    this.pendingByContact[nodeId] = 0;
+    this.updateContacts(this.lastNodes || [], this.lastMyNodeId);
   }
 
   updateContacts(nodes, myNodeId) {
@@ -54,12 +98,17 @@ class ChatPanel {
         const div = document.createElement('div');
         div.className = 'contact-item' + (this.selectedContact && this.selectedContact.id === n.id ? ' active' : '');
         const dotColor = n.on ? '#3db86b' : '#bebdb8';
+        const pending = this.pendingByContact[n.id] || 0;
+        const pendingBadge = pending > 0
+          ? `<span class="pending-count">${pending}</span>`
+          : '';
         div.innerHTML = `
           <div class="contact-dot" style="background: ${dotColor}"></div>
-          <div>
+          <div class="contact-info">
             <div class="contact-name">${n.name} ${!n.on ? '(apagado)' : ''}</div>
             <div class="contact-label">Nodo ${n.label}</div>
           </div>
+          ${pendingBadge}
         `;
         div.addEventListener('click', () => this.selectContact(n));
         this.contactsList.appendChild(div);
@@ -69,26 +118,49 @@ class ChatPanel {
   selectContact(node) {
     this.selectedContact = node;
     this.chatWith.textContent = `Chat con ${node.name} (${node.label})`;
-    this.msgInput.disabled = false;
-    this.btnSend.disabled = false;
     this.chatMessages.innerHTML = '';
+    this.clearPending(node.id);
+    this.updateSendButton();
 
-    this.updateContacts(this.lastNodes || [], this.lastMyNodeId);
-
-    const history = this.receiveMessage.getMessages().filter(
-      m => (m.from === node.id) || (m.toNodeId === node.id)
+    const received = this.receiveMessage.getMessages().filter(
+      m => m.from === node.id
     );
-    history.forEach(m => {
-      const dir = m.from === node.id ? 'in' : 'out';
-      const name = dir === 'in' ? m.fromName : 'Yo';
-      this.appendMessage(name, m.text, dir);
+    const sent = this.sentMessage.getMessages().filter(
+      m => m.toNodeId === node.id
+    );
+
+    const all = [
+      ...received.map(m => ({ ...m, dir: 'in', displayName: m.fromName })),
+      ...sent.map(m => ({ ...m, dir: 'out', displayName: 'Yo' })),
+    ].sort((a, b) => a.timestamp - b.timestamp);
+
+    all.forEach(m => {
+      this.appendMessage(m.displayName, m.text, m.dir);
     });
   }
 
   onNewIncomingMessage(data) {
+    if (typeof Sounds !== 'undefined') Sounds.receive();
     if (this.selectedContact && data.from === this.selectedContact.id) {
       this.appendMessage(data.fromName, data.text, 'in');
+    } else {
+      this.markPending(data.from);
     }
+  }
+
+  onMessageError(data) {
+    if (typeof Sounds !== 'undefined') Sounds.error();
+    let text = '';
+    if (data.reason === 'receptor-apagado') {
+      text = `No se pudo entregar: ${data.receiverName} está apagado`;
+    } else if (data.reason === 'sin-ruta') {
+      text = `No se pudo entregar: no hay ruta hacia ${data.receiverName}`;
+    } else if (data.reason === 'receptor-no-existe') {
+      text = 'No se pudo entregar: receptor no encontrado';
+    } else {
+      text = 'No se pudo entregar el mensaje';
+    }
+    this.appendErrorMessage(text);
   }
 
   appendMessage(sender, text, direction) {
@@ -103,13 +175,29 @@ class ChatPanel {
     this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
   }
 
+  appendErrorMessage(text) {
+    const div = document.createElement('div');
+    div.className = 'message error';
+    div.textContent = text;
+    this.chatMessages.appendChild(div);
+    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+  }
+
   handleSend() {
     if (!this.selectedContact) return;
+    if (!this.myNodeOn) return;
     const text = this.msgInput.value.trim();
     if (!text) return;
 
+    if (typeof Sounds !== 'undefined') Sounds.send();
     const result = this.sendMessage.execute(this.selectedContact.id, text);
     if (result.success) {
+      this.sentMessage.addMessage({
+        from: this.client.getMyNodeId(),
+        toNodeId: this.selectedContact.id,
+        text: text,
+        timestamp: Date.now(),
+      });
       this.appendMessage('Yo', text, 'out');
       this.msgInput.value = '';
     }
