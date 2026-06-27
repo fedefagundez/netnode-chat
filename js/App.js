@@ -69,9 +69,10 @@ class App {
   createRoom() {
     const teacherName = document.getElementById('teacher-name-input').value.trim();
     const groupName = document.getElementById('group-name-input').value.trim();
+    const topology = document.getElementById('topology-select').value;
     if (!teacherName || !groupName) return;
 
-    this.client.createRoom(groupName, teacherName);
+    this.client.createRoom(groupName, teacherName, topology);
 
     this.client.onRoomCreated = (data) => {
       this.showScreen('teacherDashboard');
@@ -93,6 +94,7 @@ class App {
     document.getElementById('teacher-room-code').textContent = data.code;
     document.getElementById('teacher-group-name').textContent = data.groupName;
     document.getElementById('teacher-node-count').textContent = '0 nodos conectados';
+    document.getElementById('topology-change-select').value = data.topology || 'chain';
 
     this.teacherDashboard.updateChatPairs();
 

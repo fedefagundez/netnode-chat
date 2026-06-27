@@ -36,7 +36,7 @@ class SocketServer {
       console.log(`[Server] Cliente conectado: ${socket.id}`);
 
       socket.on('create-room', (data) => {
-        const { groupName, teacherName } = data;
+        const { groupName, teacherName, topology } = data;
         if (!groupName || !groupName.trim()) {
           socket.emit('error', { message: 'Nombre de grupo inválido' });
           return;
@@ -44,15 +44,17 @@ class SocketServer {
 
         const room = this.roomManager.createRoom(groupName.trim(), socket.id);
         room.teacherName = teacherName || 'Profesor';
+        if (topology) room.topology = topology;
         socket.join(room.code);
 
         socket.emit('room-created', {
           code: room.code,
           groupName: room.groupName,
           teacherName: room.teacherName,
+          topology: room.topology,
         });
 
-        console.log(`[Server] Profesor creó sala: ${room.code} (${room.groupName})`);
+        console.log(`[Server] Profesor creó sala: ${room.code} (${room.groupName}) - Topología: ${room.topology}`);
       });
 
       socket.on('join-room', (data) => {
@@ -158,6 +160,16 @@ class SocketServer {
           this.io.to(room.code).emit('state-update', room.getState());
           console.log(`[Server] Nodo toggled en sala ${room.code}: ${node.label} → on: ${room.getNode(node.id).on}`);
         }
+      });
+
+      socket.on('change-topology', (data) => {
+        const room = this.roomManager.getRoomByTeacherSocket(socket.id);
+        if (!room) return;
+
+        const { topology } = data;
+        room.changeTopology(topology);
+        this.io.to(room.code).emit('state-update', room.getState());
+        console.log(`[Server] Topología cambiada en sala ${room.code}: ${topology}`);
       });
 
       socket.on('get-chat-log', (data) => {

@@ -9,6 +9,7 @@ class Room {
     this.nextNodeId = 0;
     this.alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     this.createdAt = new Date();
+    this.topology = 'chain';
   }
 
   addNode(name, socketId) {
@@ -24,15 +25,335 @@ class Room {
       y: 0,
     };
     this.nodes.set(id, node);
-
-    const existingNodes = Array.from(this.nodes.values()).filter(n => n.id !== id);
-    if (existingNodes.length > 0) {
-      const lastNode = existingNodes[existingNodes.length - 1];
-      this.edges.push({ from: lastNode.id, to: id });
-    }
-
+    this.connectNewNode(id);
     this.assignPositions();
     return node;
+  }
+
+  connectNewNode(newId) {
+    const ids = Array.from(this.nodes.keys()).filter(id => id !== newId);
+    if (ids.length === 0) return;
+
+    switch (this.topology) {
+      case 'chain':
+        this.edges.push({ from: ids[ids.length - 1], to: newId });
+        break;
+
+      case 'star':
+        this.edges.push({ from: ids[0], to: newId });
+        break;
+
+      case 'ring':
+        if (ids.length === 1) {
+          this.edges.push({ from: ids[0], to: newId });
+        } else {
+          this.edges.push({ from: ids[ids.length - 1], to: newId });
+          this.edges.push({ from: newId, to: ids[0] });
+        }
+        break;
+
+      case 'tree':
+        if (ids.length <= 1) {
+          this.edges.push({ from: ids[0], to: newId });
+        } else {
+          const nodeIndex = ids.length;
+          const parentIndex = Math.floor((nodeIndex - 1) / 2);
+          this.edges.push({ from: ids[parentIndex], to: newId });
+        }
+        break;
+
+      case 'mesh-partial':
+        this.connectRandom(newId, 2, 3);
+        break;
+
+      case 'mesh-full':
+        for (const id of ids) {
+          this.edges.push({ from: id, to: newId });
+        }
+        break;
+
+      case 'small-world':
+        this.connectSmallWorld(newId);
+        break;
+
+      case 'scale-free':
+        this.connectScaleFree(newId);
+        break;
+
+      case 'random':
+        for (const id of ids) {
+          if (Math.random() < 0.3) {
+            this.edges.push({ from: id, to: newId });
+          }
+        }
+        if (!this.edges.some(e => e.from === newId || e.to === newId)) {
+          const rand = ids[Math.floor(Math.random() * ids.length)];
+          this.edges.push({ from: rand, to: newId });
+        }
+        break;
+
+      case 'grid':
+        this.connectGrid(newId);
+        break;
+    }
+  }
+
+  connectRandom(newId, min, max) {
+    const ids = Array.from(this.nodes.keys()).filter(id => id !== newId);
+    const count = Math.min(ids.length, min + Math.floor(Math.random() * (max - min + 1)));
+    const shuffled = [...ids].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < count; i++) {
+      this.edges.push({ from: shuffled[i], to: newId });
+    }
+  }
+
+  connectSmallWorld(newId) {
+    const ids = Array.from(this.nodes.keys()).filter(id => id !== newId);
+    if (ids.length === 0) return;
+
+    const cols = Math.ceil(Math.sqrt(ids.length + 1));
+    const idx = ids.length;
+    const row = Math.floor(idx / cols);
+    const col = idx % cols;
+
+    if (col > 0) {
+      const left = idx - 1;
+      if (ids.includes(left)) this.edges.push({ from: left, to: newId });
+    }
+    if (row > 0) {
+      const up = idx - cols;
+      if (ids.includes(up)) this.edges.push({ from: up, to: newId });
+    }
+
+    if (Math.random() < 0.2 && ids.length > 2) {
+      const others = ids.filter(id => id !== newId);
+      const rand = others[Math.floor(Math.random() * others.length)];
+      if (!this.edgeExists(newId, rand)) {
+        this.edges.push({ from: rand, to: newId });
+      }
+    }
+  }
+
+  connectScaleFree(newId) {
+    const ids = Array.from(this.nodes.keys()).filter(id => id !== newId);
+    if (ids.length === 0) return;
+
+    const degrees = new Map();
+    for (const id of ids) {
+      degrees.set(id, 0);
+    }
+    for (const e of this.edges) {
+      if (degrees.has(e.from)) degrees.set(e.from, degrees.get(e.from) + 1);
+      if (degrees.has(e.to)) degrees.set(e.to, degrees.get(e.to) + 1);
+    }
+
+    const totalDegree = Array.from(degrees.values()).reduce((a, b) => a + b, 0) || 1;
+    const connections = Math.min(3, ids.length);
+
+    for (let c = 0; c < connections; c++) {
+      let rand = Math.random() * totalDegree;
+      for (const [id, deg] of degrees) {
+        rand -= deg + 1;
+        if (rand <= 0) {
+          if (!this.edgeExists(newId, id)) {
+            this.edges.push({ from: id, to: newId });
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  connectGrid(newId) {
+    const ids = Array.from(this.nodes.keys()).filter(id => id !== newId);
+    if (ids.length === 0) return;
+
+    const cols = Math.ceil(Math.sqrt(ids.length + 1));
+    const idx = ids.length;
+    const row = Math.floor(idx / cols);
+    const col = idx % cols;
+
+    if (col > 0) {
+      const left = idx - 1;
+      if (ids.includes(left)) this.edges.push({ from: left, to: newId });
+    }
+    if (row > 0) {
+      const up = idx - cols;
+      if (ids.includes(up)) this.edges.push({ from: up, to: newId });
+    }
+  }
+
+  edgeExists(a, b) {
+    return this.edges.some(
+      e => (e.from === a && e.to === b) || (e.from === b && e.to === a)
+    );
+  }
+
+  changeTopology(type) {
+    this.topology = type;
+    this.edges = [];
+    const ids = Array.from(this.nodes.keys());
+
+    switch (type) {
+      case 'chain':
+        for (let i = 0; i < ids.length - 1; i++) {
+          this.edges.push({ from: ids[i], to: ids[i + 1] });
+        }
+        break;
+
+      case 'star':
+        for (let i = 1; i < ids.length; i++) {
+          this.edges.push({ from: ids[0], to: ids[i] });
+        }
+        break;
+
+      case 'ring':
+        for (let i = 0; i < ids.length; i++) {
+          this.edges.push({ from: ids[i], to: ids[(i + 1) % ids.length] });
+        }
+        break;
+
+      case 'tree':
+        this.buildTree(ids);
+        break;
+
+      case 'mesh-partial':
+        for (const id of ids) {
+          const others = ids.filter(x => x !== id);
+          const count = Math.min(others.length, 2 + Math.floor(Math.random() * 2));
+          const shuffled = [...others].sort(() => Math.random() - 0.5);
+          for (let i = 0; i < count; i++) {
+            if (!this.edgeExists(id, shuffled[i])) {
+              this.edges.push({ from: id, to: shuffled[i] });
+            }
+          }
+        }
+        break;
+
+      case 'mesh-full':
+        for (let i = 0; i < ids.length; i++) {
+          for (let j = i + 1; j < ids.length; j++) {
+            this.edges.push({ from: ids[i], to: ids[j] });
+          }
+        }
+        break;
+
+      case 'small-world':
+        this.buildSmallWorld(ids);
+        break;
+
+      case 'scale-free':
+        this.buildScaleFree(ids);
+        break;
+
+      case 'random':
+        for (let i = 0; i < ids.length; i++) {
+          for (let j = i + 1; j < ids.length; j++) {
+            if (Math.random() < 0.3) {
+              this.edges.push({ from: ids[i], to: ids[j] });
+            }
+          }
+        }
+        for (const id of ids) {
+          if (!this.edges.some(e => e.from === id || e.to === id)) {
+            const others = ids.filter(x => x !== id);
+            const rand = others[Math.floor(Math.random() * others.length)];
+            this.edges.push({ from: id, to: rand });
+          }
+        }
+        break;
+
+      case 'grid':
+        this.buildGrid(ids);
+        break;
+    }
+  }
+
+  buildTree(ids) {
+    if (ids.length <= 1) return;
+
+    const levels = Math.ceil(Math.log2(ids.length + 1));
+    let idx = 0;
+    const levelNodes = [];
+
+    for (let level = 0; level < levels && idx < ids.length; level++) {
+      const count = Math.min(Math.pow(2, level), ids.length - idx);
+      const levelArr = [];
+      for (let i = 0; i < count && idx < ids.length; i++) {
+        levelArr.push(ids[idx]);
+        idx++;
+      }
+      levelNodes.push(levelArr);
+    }
+
+    for (let level = 1; level < levelNodes.length; level++) {
+      for (let i = 0; i < levelNodes[level].length; i++) {
+        const parentIdx = Math.floor(i / 2);
+        if (parentIdx < levelNodes[level - 1].length) {
+          this.edges.push({ from: levelNodes[level - 1][parentIdx], to: levelNodes[level][i] });
+        }
+      }
+    }
+  }
+
+  buildSmallWorld(ids) {
+    const cols = Math.ceil(Math.sqrt(ids.length));
+    for (let i = 0; i < ids.length; i++) {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      if (col < cols - 1 && i + 1 < ids.length) {
+        this.edges.push({ from: ids[i], to: ids[i + 1] });
+      }
+      if (row * cols + col + cols < ids.length) {
+        this.edges.push({ from: ids[i], to: ids[i + cols] });
+      }
+    }
+    for (let i = 0; i < ids.length; i++) {
+      if (Math.random() < 0.2) {
+        const others = ids.filter(x => x !== ids[i]);
+        const rand = others[Math.floor(Math.random() * others.length)];
+        if (!this.edgeExists(ids[i], rand)) {
+          this.edges.push({ from: ids[i], to: rand });
+        }
+      }
+    }
+  }
+
+  buildScaleFree(ids) {
+    if (ids.length < 2) return;
+    this.edges.push({ from: ids[0], to: ids[1] });
+
+    for (let i = 2; i < ids.length; i++) {
+      const degrees = new Map();
+      for (const id of ids.slice(0, i)) degrees.set(id, 0);
+      for (const e of this.edges) {
+        if (degrees.has(e.from)) degrees.set(e.from, degrees.get(e.from) + 1);
+        if (degrees.has(e.to)) degrees.set(e.to, degrees.get(e.to) + 1);
+      }
+      const total = Array.from(degrees.values()).reduce((a, b) => a + b, 0) || 1;
+      let rand = Math.random() * total;
+      for (const [id, deg] of degrees) {
+        rand -= deg + 1;
+        if (rand <= 0) {
+          this.edges.push({ from: id, to: ids[i] });
+          break;
+        }
+      }
+    }
+  }
+
+  buildGrid(ids) {
+    const cols = Math.ceil(Math.sqrt(ids.length));
+    for (let i = 0; i < ids.length; i++) {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      if (col < cols - 1 && i + 1 < ids.length) {
+        this.edges.push({ from: ids[i], to: ids[i + 1] });
+      }
+      if (row * cols + col + cols < ids.length) {
+        this.edges.push({ from: ids[i], to: ids[i + cols] });
+      }
+    }
   }
 
   removeNode(socketId) {
@@ -68,10 +389,7 @@ class Room {
   }
 
   addEdge(fromId, toId) {
-    const exists = this.edges.some(
-      e => (e.from === fromId && e.to === toId) || (e.from === toId && e.to === fromId)
-    );
-    if (exists) return false;
+    if (this.edgeExists(fromId, toId)) return false;
     this.edges.push({ from: fromId, to: toId });
     return true;
   }
@@ -185,6 +503,7 @@ class Room {
     return {
       code: this.code,
       groupName: this.groupName,
+      topology: this.topology,
       nodes: Array.from(this.nodes.values()),
       edges: this.edges,
       nodeCount: this.nodes.size,

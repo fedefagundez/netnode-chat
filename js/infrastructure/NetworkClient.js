@@ -73,12 +73,16 @@ class NetworkClient {
     });
   }
 
-  createRoom(groupName, teacherName) {
-    this.socket.emit('create-room', { groupName, teacherName });
+  createRoom(groupName, teacherName, topology) {
+    this.socket.emit('create-room', { groupName, teacherName, topology });
   }
 
   joinRoom(code, name) {
     this.socket.emit('join-room', { code, name });
+  }
+
+  changeTopology(topology) {
+    this.socket.emit('change-topology', { topology });
   }
 
   sendMessage(toNodeId, text) {

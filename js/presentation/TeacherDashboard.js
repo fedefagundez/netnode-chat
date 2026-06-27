@@ -30,11 +30,14 @@ class TeacherDashboard {
     this.monitorListView = document.getElementById('monitor-list-view');
     this.monitorChatView = document.getElementById('monitor-chat-view');
     this.btnMonitorBack = document.getElementById('btn-monitor-back');
+    this.topologySelect = document.getElementById('topology-change-select');
+    this.btnApplyTopology = document.getElementById('btn-apply-topology');
 
     this.btnCopyLink.addEventListener('click', () => this.copyToClipboard(this.shareLinkEl));
     this.btnCopyCode.addEventListener('click', () => this.copyToClipboard(this.roomCodeEl, true));
     this.chatSearchEl.addEventListener('input', () => this.filterChatPairs());
     this.btnMonitorBack.addEventListener('click', () => this.showListView());
+    this.btnApplyTopology.addEventListener('click', () => this.applyTopology());
     this.setupSocketListeners();
   }
 
@@ -167,6 +170,11 @@ class TeacherDashboard {
     this.monitorChatView.classList.remove('hidden');
   }
 
+  applyTopology() {
+    const topology = this.topologySelect.value;
+    this.socket.emit('change-topology', { topology });
+  }
+
   selectChat(pair) {
     this.selectedChat = pair;
     this.chatTitleEl.textContent = `${pair.a.name} ↔ ${pair.b.name}`;
@@ -242,7 +250,7 @@ class TeacherDashboard {
     const w = rect.width;
     const h = rect.height;
 
-    const positions = calculatePositions(this.state.nodes, w, h);
+    const positions = calculatePositions(this.state.nodes, w, h, this.state.topology);
 
     const a = positions.find(p => p.node.id === this.pathHL[this.packetEdgeIdx]);
     const b = positions.find(p => p.node.id === this.pathHL[this.packetEdgeIdx + 1]);
@@ -305,7 +313,7 @@ class TeacherDashboard {
       return;
     }
 
-    const positions = calculatePositions(nodes, w, h);
+    const positions = calculatePositions(nodes, w, h, this.state.topology);
 
     ctx.lineCap = 'round';
     for (const edge of edges) {

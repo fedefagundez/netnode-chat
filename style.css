@@ -511,6 +511,58 @@ canvas {
   opacity: 0.9;
 }
 
+.select-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  margin-top: 8px;
+}
+
+.topology-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-med);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+}
+
+.topology-select:focus {
+  border-color: var(--blue);
+}
+
+.topology-change-box {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.topology-change-box .topology-select {
+  width: auto;
+  min-width: 140px;
+}
+
+.btn-apply {
+  padding: 4px 12px;
+  border: 1px solid var(--green);
+  border-radius: 6px;
+  background: #e6f9ee;
+  color: #1e8a44;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-apply:hover {
+  background: #1e8a44;
+  color: #fff;
+}
+
 /* Teacher Dashboard */
 .teacher-dashboard {
   display: flex;

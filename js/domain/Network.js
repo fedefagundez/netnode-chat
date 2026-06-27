@@ -8,6 +8,7 @@ class Network {
     this.nodes = [];
     this.edges = [];
     this.myNodeId = null;
+    this.topology = 'chain';
   }
 
   nodeR() {
@@ -17,11 +18,12 @@ class Network {
   updateState(serverState) {
     this.nodes = serverState.nodes.map(n => new Node(n.id, 0, 0, n.label, n.name, n.on));
     this.edges = serverState.edges.map(e => new Edge(e.from, e.to));
+    if (serverState.topology) this.topology = serverState.topology;
     this.assignPositions();
   }
 
   assignPositions() {
-    const positions = calculatePositions(this.nodes, this.camera.width, this.camera.height);
+    const positions = calculatePositions(this.nodes, this.camera.width, this.camera.height, this.topology);
     positions.forEach(pos => {
       pos.node.x = pos.x;
       pos.node.y = pos.y;
