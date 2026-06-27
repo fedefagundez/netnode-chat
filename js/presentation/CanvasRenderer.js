@@ -8,6 +8,7 @@ class CanvasRenderer {
     this.packetT = 0;
     this.packetEdgeIdx = 0;
     this.animId = null;
+    this.onAnimationComplete = null;
   }
 
   isDark() {
@@ -20,13 +21,17 @@ class CanvasRenderer {
       bg: d ? '#1e1e1c' : '#f0efeb',
       grid: d ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.035)',
       edge: d ? '#3a3a36' : '#c8c7c0',
+      edgeDead: d ? '#262624' : '#e2e1db',
       nodeActive: d ? '#4a76d4' : '#5b87e0',
       nodeActiveBr: d ? '#2a4fa4' : '#3a5fa8',
+      nodeOff: d ? '#363634' : '#bebdb8',
+      nodeOffBr: d ? '#282826' : '#a0a09a',
       nodeMe: '#3db86b',
       nodeMeBr: '#1e8a44',
       pkt: '#f5a623',
       pktBr: '#b87a10',
       lblOn: '#fff',
+      lblOff: d ? '#555' : '#b8b8b0',
       hover: d ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
     };
   }
@@ -91,17 +96,36 @@ class CanvasRenderer {
       ctx.beginPath();
       ctx.moveTo(na.x, na.y);
       ctx.lineTo(nb.x, nb.y);
-      ctx.strokeStyle = c.edge;
-      ctx.lineWidth = 1.5 / cam.scale;
+
+      if (!na.on || !nb.on) {
+        ctx.strokeStyle = c.edgeDead;
+        ctx.lineWidth = 1.5 / cam.scale;
+        ctx.setLineDash([5 / cam.scale, 5 / cam.scale]);
+      } else {
+        ctx.strokeStyle = c.edge;
+        ctx.lineWidth = 1.5 / cam.scale;
+        ctx.setLineDash([]);
+      }
       ctx.stroke();
+      ctx.setLineDash([]);
     }
   }
 
   drawNodes(ctx, cam, net, c, nr) {
     for (const n of net.nodes) {
       const isMe = n.id === net.myNodeId;
-      const fill = isMe ? c.nodeMe : c.nodeActive;
-      const border = isMe ? c.nodeMeBr : c.nodeActiveBr;
+      let fill, border;
+
+      if (!n.on) {
+        fill = c.nodeOff;
+        border = c.nodeOffBr;
+      } else if (isMe) {
+        fill = c.nodeMe;
+        border = c.nodeMeBr;
+      } else {
+        fill = c.nodeActive;
+        border = c.nodeActiveBr;
+      }
 
       ctx.beginPath();
       ctx.arc(n.x, n.y, nr, 0, Math.PI * 2);
@@ -111,8 +135,25 @@ class CanvasRenderer {
       ctx.lineWidth = 2 / cam.scale;
       ctx.stroke();
 
+      if (!n.on) {
+        ctx.save();
+        ctx.strokeStyle = this.isDark() ? '#666' : '#ccc';
+        ctx.lineWidth = 2 / cam.scale;
+        ctx.lineCap = 'round';
+        const s = Math.round(nr * .38);
+        ctx.beginPath();
+        ctx.moveTo(n.x - s, n.y - s);
+        ctx.lineTo(n.x + s, n.y + s);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(n.x + s, n.y - s);
+        ctx.lineTo(n.x - s, n.y + s);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       const fs = Math.max(12, Math.round(nr * 0.6));
-      ctx.fillStyle = c.lblOn;
+      ctx.fillStyle = n.on ? c.lblOn : c.lblOff;
       ctx.font = `bold ${fs}px -apple-system,sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -186,6 +227,7 @@ class CanvasRenderer {
       this.packetPos = null;
       this.pathHL = [];
       this.draw();
+      if (this.onAnimationComplete) this.onAnimationComplete();
     }, 1000);
 
     this.animId = null;

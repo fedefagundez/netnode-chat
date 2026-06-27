@@ -19,6 +19,13 @@ class NetworkState {
       y: 0,
     };
     this.nodes.set(id, node);
+
+    const existingNodes = Array.from(this.nodes.values()).filter(n => n.id !== id);
+    if (existingNodes.length > 0) {
+      const lastNode = existingNodes[existingNodes.length - 1];
+      this.edges.push({ from: lastNode.id, to: id });
+    }
+
     this.assignPositions();
     return node;
   }
@@ -42,6 +49,15 @@ class NetworkState {
   getNodeBySocket(socketId) {
     for (const node of this.nodes.values()) {
       if (node.socketId === socketId) return node;
+    }
+    return null;
+  }
+
+  toggleNode(id) {
+    const node = this.nodes.get(id);
+    if (node) {
+      node.on = !node.on;
+      return node;
     }
     return null;
   }

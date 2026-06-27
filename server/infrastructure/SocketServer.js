@@ -68,6 +68,7 @@ class SocketServer {
           from: sender.id,
           fromLabel: sender.label,
           fromName: sender.name,
+          toNodeId: receiver.id,
           text: data.text,
           timestamp: Date.now(),
         });
@@ -77,6 +78,15 @@ class SocketServer {
         const node = this.network.removeNode(socket.id);
         if (node) {
           console.log(`[Server] Nodo desconectado: ${node.label} (${node.name})`);
+          this.io.emit('state-update', this.network.getState());
+        }
+      });
+
+      socket.on('toggle-node', () => {
+        const node = this.network.getNodeBySocket(socket.id);
+        if (node) {
+          this.network.toggleNode(node.id);
+          console.log(`[Server] Nodo toggled: ${node.label} → on: ${this.network.getNode(node.id).on}`);
           this.io.emit('state-update', this.network.getState());
         }
       });

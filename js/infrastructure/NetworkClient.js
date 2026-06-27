@@ -51,6 +51,10 @@ class NetworkClient {
     this.socket.emit('send-message', { toNodeId, text });
   }
 
+  toggleNode() {
+    this.socket.emit('toggle-node');
+  }
+
   getMyNodeId() {
     return this.myNodeId;
   }

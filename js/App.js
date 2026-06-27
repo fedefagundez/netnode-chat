@@ -18,6 +18,7 @@ class App {
     this.canvasAdapter = null;
     this.renderer = null;
     this.chatPanel = null;
+    this.pendingMessage = null;
 
     this.loginScreen = document.getElementById('login-screen');
     this.appEl = document.getElementById('app');
@@ -75,12 +76,21 @@ class App {
 
     this.client.onPacket = (data) => {
       if (this.renderer && data.path && data.path.length > 1) {
+        this.renderer.onAnimationComplete = () => {
+          if (this.pendingMessage) {
+            this.receiveMessage.addMessage(this.pendingMessage);
+            if (this.chatPanel) {
+              this.chatPanel.onNewIncomingMessage(this.pendingMessage);
+            }
+            this.pendingMessage = null;
+          }
+        };
         this.renderer.animatePacket(data.path);
       }
     };
 
     this.client.onReceiveMessage = (data) => {
-      this.receiveMessage.addMessage(data);
+      this.pendingMessage = data;
     };
 
     this.client.register(name);
@@ -111,7 +121,7 @@ class App {
   }
 
   initChat() {
-    this.chatPanel = new ChatPanel(this.receiveMessage, this.sendMessage);
+    this.chatPanel = new ChatPanel(this.receiveMessage, this.sendMessage, this.client);
     this.chatPanel.updateContacts(this.network.nodes, this.client.getMyNodeId());
     this.chatPanel.storeContext(this.network.nodes, this.client.getMyNodeId());
   }
