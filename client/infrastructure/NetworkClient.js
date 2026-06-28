@@ -19,7 +19,7 @@ class NetworkClient {
   }
 
   connect() {
-    this.socket = io({ transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1000 });
+    this.socket = io('/', { transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1000 });
 
     this.socket.on('connect', () => {
       console.log('[Client] Conectado al servidor');
