@@ -32,6 +32,7 @@ class SocketServer {
     const clientPath = join(__dirname, '..', '..');
     console.log('[Server] __dirname:', __dirname);
     console.log('[Server] static path:', clientPath);
+    this.app.get('/health', (req, res) => res.sendStatus(200));
     this.app.use(express.static(clientPath));
   }
 
