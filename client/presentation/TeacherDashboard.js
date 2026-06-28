@@ -65,7 +65,7 @@ class TeacherDashboard {
       this.roomCode = data.code;
       this.groupName = data.groupName;
       const baseUrl = window.location.origin + window.location.pathname;
-      this.shareLinkEl.value = baseUrl + '?code=' + data.code;
+      this.shareLinkEl.value = baseUrl + '?join=1';
       this.groupNameEl.textContent = data.groupName;
     });
 

@@ -5,6 +5,7 @@ class NetworkClient {
     this.myLabel = null;
     this.state = { nodes: [], edges: [] };
     this.roomCode = null;
+    this.connected = false;
 
     this.onRegistered = null;
     this.onStateUpdate = null;
@@ -18,10 +19,16 @@ class NetworkClient {
   }
 
   connect() {
-    this.socket = io();
+    this.socket = io({ transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1000 });
 
     this.socket.on('connect', () => {
       console.log('[Client] Conectado al servidor');
+      this.connected = true;
+    });
+
+    this.socket.on('connect_error', (err) => {
+      console.error('[Client] Error de conexión:', err.message);
+      this.connected = false;
     });
 
     this.socket.on('room-created', (data) => {

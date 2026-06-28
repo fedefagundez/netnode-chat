@@ -14,12 +14,14 @@ class SocketServer {
     this.roomManager = new RoomManager();
 
     this.app = express();
+    this.app.set('trust proxy', 1);
     this.httpServer = createServer(this.app);
     this.io = new Server(this.httpServer, {
       cors: {
         origin: '*',
         methods: ['GET', 'POST'],
       },
+      transports: ['websocket', 'polling'],
     });
 
     this.setupStaticFiles();
