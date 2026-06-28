@@ -30,6 +30,8 @@ class SocketServer {
 
   setupStaticFiles() {
     const clientPath = join(__dirname, '..', '..');
+    console.log('[Server] __dirname:', __dirname);
+    console.log('[Server] static path:', clientPath);
     this.app.use(express.static(clientPath));
   }
 
