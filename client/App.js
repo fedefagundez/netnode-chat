@@ -1,6 +1,7 @@
 import { Camera } from './domain/Camera.js';
 import { Network } from './domain/Network.js';
 import { NetworkClient } from './infrastructure/NetworkClient.js';
+import { MobileTabs } from './infrastructure/MobileTabs.js';
 import { SendMessage } from './application/SendMessage.js';
 import { ToggleNode } from './application/ToggleNode.js';
 import { ReceiveMessage } from './application/ReceiveMessage.js';
@@ -157,6 +158,7 @@ class App {
     this.updateBadge();
     this.initCanvas();
     this.initChat();
+    this.mobileTabs = new MobileTabs();
 
     document.getElementById('status').textContent =
       `Conectado como Nodo ${data.label} — ${data.state.nodes.length} nodos en la red`;
